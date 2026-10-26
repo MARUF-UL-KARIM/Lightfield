@@ -1,0 +1,95 @@
+name: Publish Debug APK Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'apk-distribution/app-debug.apk'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    name: Publish APK to GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Pre-compiled APK Integrity
+        run: |
+          set -e
+          echo "=== Checking APK File Existence & Size ==="
+          if [ ! -f "apk-distribution/app-debug.apk" ]; then
+            echo "Error: apk-distribution/app-debug.apk not found!" >&2
+            exit 1
+          fi
+
+          if [ ! -s "apk-distribution/app-debug.apk" ]; then
+            echo "Error: apk-distribution/app-debug.apk is empty!" >&2
+            exit 1
+          fi
+
+          if [ ! -f "apk-distribution/app-debug.apk.sha256" ]; then
+            echo "Error: apk-distribution/app-debug.apk.sha256 checksum file not found!" >&2
+            exit 1
+          fi
+
+          echo "=== Verifying SHA-256 Checksum ==="
+          cd apk-distribution
+          sha256sum -c app-debug.apk.sha256
+          cd ..
+
+          echo "=== Verifying ZIP Archive Structure ==="
+          unzip -tq apk-distribution/app-debug.apk
+          echo "APK validation successful!"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG_NAME="debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}"
+          RELEASE_TITLE="Lightfield Debug APK (Build ${{ github.run_number }}.${{ github.run_attempt }})"
+          APK_PATH="apk-distribution/app-debug.apk"
+          APK_SIZE=$(ls -lh "$APK_PATH" | awk '{print $5}')
+          APK_SHA=$(sha256sum "$APK_PATH" | awk '{print $1}')
+
+          echo "Creating Release with Tag: $TAG_NAME"
+          gh release create "$TAG_NAME" "$APK_PATH" \
+            --title "$RELEASE_TITLE" \
+            --notes "### 🚀 Lightfield Android Debug APK
+
+          - **Build:** Run #${{ github.run_number }} (Attempt #${{ github.run_attempt }})
+          - **File:** \`app-debug.apk\`
+          - **Size:** $APK_SIZE
+          - **SHA-256 Checksum:** \`$APK_SHA\`
+
+          #### 📲 Direct Download (Always Latest)
+          [Download app-debug.apk](https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk)" \
+            --latest
+
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk"
+
+          echo "=== Release Published Successfully ==="
+          echo "Tag: $TAG_NAME"
+          echo "Release URL: $RELEASE_URL"
+          echo "Latest Download URL: $DOWNLOAD_URL"
+
+          # Write to GitHub Step Summary
+          echo "## 🚀 Android Debug APK Release Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Release Tag** | \`$TAG_NAME\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Asset Name** | \`app-debug.apk\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **File Size** | $APK_SIZE |" >> $GITHUB_STEP_SUMMARY
+          echo "| **SHA-256 Checksum** | \`$APK_SHA\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Release Page** | [View Release]($RELEASE_URL) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Direct Download** | [Direct Download Link]($DOWNLOAD_URL) |" >> $GITHUB_STEP_SUMMARY
