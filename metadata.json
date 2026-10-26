@@ -1,0 +1,6 @@
+{
+  "name": "Lightfield",
+  "description": "Professional AI photo editor with non-destructive adjustments, masking, curves, presets, and high-fidelity export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
